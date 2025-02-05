@@ -1,0 +1,78 @@
+library(oligo)
+library(pd.clariom.s.human)  # Annotation package for Clariom S Human
+library(limma)
+library(DBI)
+library(RSQLite)
+library(annotate)
+library(Biobase)
+library(AnnotationDbi) #Use AnnotationDbi to fetch gene symbols and Ensembl IDs
+library(arrayQualityMetrics)
+library(affycoretools)
+
+setwd("C:/Users/annab/Desktop/Andy/Data_rnaseq_Helene")
+
+cel_files <- list.celfiles("./CEL/", full.names = TRUE)
+raw_data <- read.celfiles(cel_files)
+
+norm_data <- rma(raw_data)
+exprs_data <- exprs(norm_data)  # Extract expression matrix
+
+eset <- annotateEset(norm_data, annotation(norm_data))
+eset_annot <- annotateEset(eset, "pd.clariom.s.human", type = "core")
+
+arrayQualityMetrics(expressionset = eset, outdir = "Rapport_QC", force = TRUE)
+
+samples <- c("BATTISTELLA_HuClariomS_Baseline_BG.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_BO.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_FC.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_GMH.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_KE.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_LA.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_LAn.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_LJ.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_PP.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_RC.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_TD.CEL",
+             "BATTISTELLA_HuClariomS_Baseline_TLM.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_BG.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_BO.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_GMH.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_KE.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_LA.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_LAn.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_LJ.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_PG.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_PP.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_RC.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_TD.CEL",
+             "BATTISTELLA_HuClariomS_Rash1_TLM.CEL",
+             "BATTISTELLA_HuClariomS_Rash2_BG.CEL",
+             "BATTISTELLA_HuClariomS_Rash2_KE.CEL",
+             "BATTISTELLA_HuClariomS_Rash2_LA.CEL",
+             "BATTISTELLA_HuClariomS_Rash2_PG.CEL")
+
+# Extraction de la condition et du patient
+# La condition se trouve dans la chaîne "Baseline", "Rash1" ou "Rash2"
+# L'identifiant du patient correspond aux lettres après le dernier underscore et avant ".CEL"
+conditions <- sub(".*_(Baseline|Rash1|Rash2)_.*", "\\1", samples)
+patients <- sub(".*_(Baseline|Rash1|Rash2)_", "", samples)
+patients <- sub("\\.CEL$", "", patients)
+
+# Create data frame for metadata
+pheno_data <- data.frame(SampleName = samples,
+                         Condition = conditions,
+                         Patient = patients,
+                         row.names = samples,
+                         stringsAsFactors = FALSE)
+
+# convert into an ADF 
+phenoAdf <- new("AnnotatedDataFrame", data = pheno_data)
+
+eset_annot@phenoData <- phenoAdf
+
+# Charger les données de caractéristiques (les noms de ligne doivent correspondre aux noms de ligne de exprMatrix)
+feature <- read.csv("./clariom_s/Clariom_S_Human.r1.na36.hg38.a1.transcript.csv", 
+                    comment.char = "#",
+                    stringsAsFactors = FALSE)
+
+
