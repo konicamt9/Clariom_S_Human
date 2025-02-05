@@ -1,0 +1,75 @@
+library(oligo)
+library(pd.clariom.s.human)  # Annotation package for Clariom S Human
+library(limma)
+library(DBI)
+library(RSQLite)
+library(annotate)
+library(Biobase)
+library(AnnotationDbi) #Use AnnotationDbi to fetch gene symbols and Ensembl IDs
+library(arrayQualityMetrics)
+library(affycoretools)
+library(pheatmap)
+
+# DE 
+# Extract condition 
+conditions <- factor(pData(eset_annot)$Condition, levels = c("Baseline", "Rash1", "Rash2"))
+
+# Create a design matrix
+design <- model.matrix(~ 0 + conditions)
+colnames(design) <- levels(conditions)
+
+print(design)
+
+# Define contrasts
+contrast.matrix <- makeContrasts(
+  Rash1_vs_Baseline = Rash1 - Baseline,
+  Rash2_vs_Baseline = Rash2 - Baseline,
+  levels = design
+)
+
+print(contrast.matrix)
+
+# Ajuster le modèle linéaire sur l'ExpressionSet annoté
+fit <- lmFit(eset_annot, design)
+
+# Appliquer les contrastes au modèle
+fit2 <- contrasts.fit(fit, contrast.matrix)
+
+# Empiriser la variance avec eBayes
+fit2 <- eBayes(fit2)
+
+
+# Rash1 vs Baseline
+results_Rash1 <- topTable(fit2, coef = "Rash1_vs_Baseline", number = Inf, adjust.method = "BH")
+head(results_Rash1)
+
+# Rash2 vs Baseline
+results_Rash2 <- topTable(fit2, coef = "Rash2_vs_Baseline", number = Inf, adjust.method = "BH")
+head(results_Rash2)
+
+# Volcano plots  
+volcanoplot(fit2, coef = "Rash1_vs_Baseline", highlight = 100, names = fit2$genes$SYMBOL, main = "Volcano Plot : Rash1 vs Baseline")
+volcanoplot(fit2, coef = "Rash2_vs_Baseline", highlight = 100, names = fit2$genes$SYMBOL, main = "Volcano Plot : Rash2 vs Baseline")
+
+# Heatmap
+# Sélectionner les gènes significativement différentiels pour Rash1 vs Baseline
+selected_genes <- rownames(results_Rash1)[results_Rash1$adj.P.Val < 0.05]
+selected_genes <- rownames(results_Rash1)[results_Rash1$P.Value < 0.05]
+
+# Extraire la matrice d'expression pour ces gènes
+expr_selected <- exprs(eset_annot)[selected_genes, ]
+
+# Créer une table de correspondance entre PROBEID et SYMBOL
+probe_to_symbol <- results_Rash1[, c("PROBEID", "SYMBOL")]
+
+# Remplacer les noms des lignes dans expr_selected par les noms de gènes
+rownames(expr_selected) <- probe_to_symbol$SYMBOL[match(rownames(expr_selected), probe_to_symbol$PROBEID)]
+
+
+### heatmap 
+# Supprimer les lignes contenant des NA (optionnel)
+expr_selected <- expr_selected[!is.na(rownames(expr_selected)), ]
+
+# Afficher la heatmap (les gènes sont mis à l'échelle par ligne)
+pheatmap(expr_selected, scale = "row", show_rownames = FALSE, main = "Heatmap des gènes significativement exprimés")
+
