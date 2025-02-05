@@ -75,4 +75,24 @@ feature <- read.csv("./clariom_s/Clariom_S_Human.r1.na36.hg38.a1.transcript.csv"
                     comment.char = "#",
                     stringsAsFactors = FALSE)
 
+# sondes non annotées 
+all_probes <- featureNames(eset)
+
+# Identifier les sondes non annotées dans eset
+non_annotated_probes <- all_probes[is.na(fData(eset)$SYMBOL)]
+
+# Vérifier combien de sondes sont non annotées
+cat("Nombre de sondes non annotées : ", length(non_annotated_probes), "\n")
+head(non_annotated_probes)
+
+## Lire le fichier CSV 
+annotation_data <- read.csv("./clariom_s/Clariom_S_Human.r1.na36.hg38.a1.transcript.csv",
+                            comment.char = "#", stringsAsFactors = FALSE)
+
+# Filtrer le fichier d’annotation pour ne conserver que les sondes non annotées
+non_annotated_info <- annotation_data[annotation_data$transcript_cluster_id %in% non_annotated_probes, ]
+
+# Vérifier les premières lignes
+head(non_annotated_info)
+
 
